@@ -1,0 +1,39 @@
+name: debug_terminal
+description: A robust, hidden, and secure debugging terminal for Flutter. Features a secret long-press trigger, PIN-gate protection, and specialized API/Error logging.
+version: 1.0.0
+repository: https://github.com/Shou-a/debug_terminal
+issue_tracker: https://github.com/Shou-a/debug_terminal/issues
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  meta: ^1.11.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+topics:
+  - debugging
+  - logging
+  - tools
+  - secure
+  - terminal
+
+screenshots:
+  - description: 'Unobtrusive debug button for fast access'
+    path: screenshots/easy_access.jpeg
+  - description: 'Deep inspection of API and Error logs'
+    path: screenshots/expanded.jpeg
+  - description: 'Terminal in collapsed state for minimal footprint'
+    path: screenshots/collapse.jpeg
+  - description: 'Secure PIN-gate protection in release mode'
+    path: screenshots/release_protected.jpeg
+
+flutter:
+  uses-material-design: true

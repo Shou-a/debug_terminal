@@ -58,6 +58,8 @@ MaterialApp(
 
 That's all the setup required. Wrap it once at the root and you can log from anywhere in the app.
 
+> **Note:** By default, `logUnhandledExceptions: true` — the package hooks into `FlutterError.onError` and `platformDispatcher.onError` to automatically capture crashes. Set it to `false` if you handle those yourself.
+
 ---
 
 ## How to open the console

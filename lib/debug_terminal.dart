@@ -7,6 +7,7 @@ import 'src/config.dart';
 
 export 'src/logic.dart' show DebugLog, ConsoleController;
 export 'src/config.dart' show DebugTerminalConfig;
+
 /// Main entry point for the Secure Debug Terminal.
 class DebugTerminal {
   static bool _isWrapped = false;
@@ -27,10 +28,10 @@ class DebugTerminal {
   /// ```
   static Widget wrap(Widget child, {DebugTerminalConfig? config}) {
     if (!_isWrapped) {
-      final _config = config ?? const DebugTerminalConfig();
-      ConsoleController.instance.configure(_config);
+      final effectiveConfig = config ?? const DebugTerminalConfig();
+      ConsoleController.instance.configure(effectiveConfig);
 
-      if (_config.logUnhandledExceptions) {
+      if (effectiveConfig.logUnhandledExceptions) {
         // Catch Flutter Framework errors (build, layout, etc.)
         final originalOnError = FlutterError.onError;
         FlutterError.onError = (details) {

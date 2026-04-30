@@ -6,7 +6,6 @@
 
 ## 1.0.0
 
-
 *   **Initial Stable Release** 🚀
 *   **🕵️ Stealth Activation**: Secret long-press gesture with customizable duration.
 *   **🔒 Secure PIN-Gate**: Protection via a custom keypad overlay.

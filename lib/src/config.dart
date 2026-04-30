@@ -30,6 +30,9 @@ class DebugTerminalConfig {
   /// Where to place the floating button on the screen.
   final Alignment floatingButtonAlignment;
 
+  /// Whether to automatically catch and log unhandled Flutter and Dart errors.
+  final bool logUnhandledExceptions;
+
   const DebugTerminalConfig(
       {this.pin = 1111,
       this.holdDuration = const Duration(seconds: 5),
@@ -38,5 +41,6 @@ class DebugTerminalConfig {
       this.startRecordingImmediately = false,
       this.openOnTapCount = 0,
       this.showFloatingButton = true,
-      this.floatingButtonAlignment = Alignment.topRight});
+      this.floatingButtonAlignment = Alignment.topRight,
+      this.logUnhandledExceptions = true});
 }

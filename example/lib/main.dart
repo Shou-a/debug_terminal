@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:debug_terminal/debug_terminal.dart';
 
-void main() {
-  // No separate init() call needed!
-  runApp(const MyApp());
-}
+void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -12,9 +9,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Debug Terminal Example',
-      theme: ThemeData.dark(),
-      // 1. One-Line Setup: Wrap and configure simultaneously
+      title: 'debug_terminal',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        scaffoldBackgroundColor: Colors.white,
+        useMaterial3: true,
+      ),
       builder: (context, child) => DebugTerminal.wrap(
         child!,
         config: const DebugTerminalConfig(
@@ -23,7 +24,7 @@ class MyApp extends StatelessWidget {
           openOnTapCount: 4,
           showFloatingButton: true,
           floatingButtonAlignment: Alignment.bottomRight,
-          primaryColor: Colors.cyanAccent,
+          primaryColor: Colors.blue,
         ),
       ),
       home: const HomeScreen(),
@@ -34,53 +35,145 @@ class MyApp extends StatelessWidget {
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  void _triggerLogs() {
-    DebugTerminal.log("Button Pressed", data: {"id": "main_action"});
+  void _logApi() {
     DebugTerminal.logApi(
-      path: "/api/v1/user/profile",
-      method: "GET",
-      query: {"userId": "99"},
-      response: {
-        "status": "success",
-        "data": {"name": "John Doe", "role": "Developer"}
-      },
+      path: '/api/v1/user/profile',
+      method: 'GET',
+      query: {'userId': '99'},
+      response: {'name': 'John Doe', 'role': 'Developer'},
       code: 200,
     );
   }
 
-  void _triggerError() {
+  void _logError() {
     try {
-      throw Exception("Simulated connection timeout");
+      throw Exception('Simulated connection timeout');
     } catch (e, stack) {
-      DebugTerminal.logError("Network Failure", error: e, stack: stack);
+      DebugTerminal.logError('Network failure', error: e, stack: stack);
     }
+  }
+
+  void _logMessage() {
+    DebugTerminal.log('Button tapped', data: {'screen': 'home'});
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Debug Terminal Example")),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      appBar: AppBar(
+        title: const Text('debug_terminal'),
+        centerTitle: false,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: Colors.grey.shade200),
+        ),
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              Text(
+                'Open the console',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Hold anywhere for 3s (duration configurable),\ntap 4 times quickly (tap count configurable),\nor use the button (configurable).',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 40),
+              Text(
+                'Generate logs',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 16),
+              _ActionTile(
+                label: 'Log a message',
+                subtitle: 'DebugTerminal.log()',
+                onTap: _logMessage,
+              ),
+              const SizedBox(height: 10),
+              _ActionTile(
+                label: 'Simulate API call',
+                subtitle: 'GET /api/v1/user/profile → 200',
+                onTap: _logApi,
+              ),
+              const SizedBox(height: 10),
+              _ActionTile(
+                label: 'Simulate error',
+                subtitle: 'Exception: connection timeout',
+                onTap: _logError,
+                isDestructive: true,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  const _ActionTile({
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isDestructive ? Colors.red.shade600 : Colors.blue.shade700;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
           children: [
-            const Icon(Icons.bug_report, size: 80, color: Colors.cyanAccent),
-            const SizedBox(height: 24),
-            const Text(
-              "Access Methods:\n1. Hold (3s)\n2. Quad-Tap Anywhere\n3. Floating Button",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.white70),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                          color: color)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                          fontFamily: 'monospace')),
+                ],
+              ),
             ),
-            const SizedBox(height: 40),
-            ElevatedButton(
-              onPressed: _triggerLogs,
-              child: const Text("Generate API Logs"),
-            ),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: _triggerError,
-              child: const Text("Simulated Error"),
-            ),
+            Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
           ],
         ),
       ),

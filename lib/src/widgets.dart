@@ -18,10 +18,23 @@ class DebugTerminalWrapper extends StatelessWidget {
         OverlayEntry(
           builder: (context) => GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onTapDown: (_) => c.startTimer(),
+            onTapDown: (details) {
+              c.startTimer();
+              // Collapse the terminal when the user taps outside its bounds
+              if (c.showConsole.value && !c.collapseConsole.value) {
+                final rb = c.terminalKey.currentContext?.findRenderObject()
+                    as RenderBox?;
+                if (rb != null) {
+                  final local = rb.globalToLocal(details.globalPosition);
+                  if (!rb.paintBounds.contains(local)) {
+                    c.collapseTerminal();
+                  }
+                }
+              }
+            },
             onTapUp: (_) => c.stopTimer(),
             onTapCancel: () => c.stopTimer(),
-            onTap: () => c.handleTap(), // Combo tracking
+            onTap: () => c.handleTap(),
             child: Stack(
               children: [
                 child,
@@ -84,11 +97,32 @@ class _DraggableConsoleState extends State<DraggableConsole> {
   bool initialized = false;
 
   @override
+  void initState() {
+    super.initState();
+    ConsoleController.instance.collapseConsole.addListener(_onCollapseChanged);
+  }
+
+  @override
+  void dispose() {
+    ConsoleController.instance.collapseConsole
+        .removeListener(_onCollapseChanged);
+    super.dispose();
+  }
+
+  void _onCollapseChanged() {
+    final shouldCollapse = ConsoleController.instance.collapseConsole.value;
+    if (shouldCollapse && !collapsed) {
+      setState(() => collapsed = true);
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!initialized) {
       final sw = MediaQuery.of(context).size.width;
-      width = sw * 0.9;
+      width = sw * 0.95;
+      left = (sw - width) / 2; // center horizontally
       initialized = true;
     }
   }
@@ -109,6 +143,7 @@ class _DraggableConsoleState extends State<DraggableConsole> {
       left: left,
       width: width,
       child: Material(
+        key: ConsoleController.instance.terminalKey,
         elevation: 8,
         borderRadius: border,
         color: Colors.transparent,
@@ -137,8 +172,10 @@ class _DraggableConsoleState extends State<DraggableConsole> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.drag_indicator,
-                          size: 18, color: Colors.white54),
+                      Icon(Icons.drag_indicator,
+                          size: 18,
+                          color:
+                              ConsoleController.instance.config.primaryColor),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
@@ -148,17 +185,31 @@ class _DraggableConsoleState extends State<DraggableConsole> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 12),
                       IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        visualDensity: VisualDensity.compact,
                         icon: Icon(
                             collapsed ? Icons.unfold_more : Icons.unfold_less,
                             size: 18,
-                            color: Colors.white54),
-                        onPressed: () => setState(() => collapsed = !collapsed),
+                            color:
+                                ConsoleController.instance.config.primaryColor),
+                        onPressed: () => setState(() {
+                          collapsed = !collapsed;
+                          // sync notifier so barrier re-collapse works next time
+                          ConsoleController.instance.collapseConsole.value =
+                              collapsed;
+                        }),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close,
-                            size: 18, color: Colors.white54),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(
+                          Icons.close,
+                          size: 18,
+                          color: Colors.red[300],
+                        ),
                         onPressed: () =>
                             ConsoleController.instance.toggleConsole(),
                       ),
@@ -169,22 +220,31 @@ class _DraggableConsoleState extends State<DraggableConsole> {
               if (!collapsed)
                 Positioned.fill(
                   top: 44,
-                  bottom: 12,
+                  bottom:
+                      28, // clears the resize handle (4px offset + 8px padding + 16px icon)
                   child: widget.child,
                 ),
               if (!collapsed)
                 Positioned(
                   right: 4,
                   bottom: 4,
-                  child: GestureDetector(
-                    onPanUpdate: (d) => setState(() {
-                      width = (width + d.delta.dx)
-                          .clamp(200.0, MediaQuery.of(context).size.width);
-                      height = (height + d.delta.dy).clamp(
-                          120.0, MediaQuery.of(context).size.height * 0.9);
-                    }),
-                    child: const Icon(Icons.open_in_full,
-                        size: 16, color: Colors.white24),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: GestureDetector(
+                      onPanUpdate: (d) => setState(() {
+                        width = (width + d.delta.dx)
+                            .clamp(200.0, MediaQuery.of(context).size.width);
+                        height = (height + d.delta.dy).clamp(
+                            120.0, MediaQuery.of(context).size.height * 0.9);
+                      }),
+                      child: Transform.scale(
+                        scaleX: -1,
+                        child: Icon(Icons.open_in_full,
+                            size: 16,
+                            color:
+                                ConsoleController.instance.config.primaryColor),
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -219,7 +279,7 @@ class _TerminalViewState extends State<TerminalView> {
         });
 
         return Container(
-          margin: const EdgeInsets.all(8),
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           decoration: BoxDecoration(
             color: Colors.black,
             borderRadius: BorderRadius.circular(8),
@@ -232,23 +292,27 @@ class _TerminalViewState extends State<TerminalView> {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 child: Row(
                   children: [
-                    const Flexible(
+                    const Expanded(
                       child: Text("System Logs",
                           style:
                               TextStyle(color: Colors.white70, fontSize: 12)),
                     ),
-                    const Spacer(),
                     ValueListenableBuilder<bool>(
                       valueListenable: c.autoScrollLogs,
                       builder: (context, auto, _) => IconButton(
                         icon: Icon(auto ? Icons.swap_vert : Icons.swipe_down,
-                            size: 16, color: Colors.white54),
+                            size: 16,
+                            color:
+                                auto ? c.config.primaryColor : Colors.white38),
                         onPressed: c.toggleAutoScroll,
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.delete_outline,
-                          size: 16, color: Colors.white54),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(Icons.delete_outline,
+                          size: 16, color: Colors.red[300]),
                       onPressed: c.clearLogs,
                     ),
                   ],
@@ -293,7 +357,7 @@ class _LogEntryWidgetState extends State<LogEntryWidget> {
         ? Colors.grey
         : (status < 300
             ? Colors.greenAccent
-            : (status >= 400 ? Colors.redAccent : Colors.amberAccent));
+            : (status >= 400 ? Colors.red[300] : Colors.amberAccent));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,104 +376,134 @@ class _LogEntryWidgetState extends State<LogEntryWidget> {
                     style: TextStyle(
                         color: color,
                         fontWeight: FontWeight.bold,
-                        fontSize: 10)),
+                        fontSize: 12)),
                 const SizedBox(width: 8),
                 Expanded(
                     child: Text(widget.log.path,
                         style: const TextStyle(
-                            color: Colors.white70, fontSize: 10),
-                        overflow: TextOverflow.ellipsis)),
-                const SizedBox(width: 4),
-                Text(status?.toString() ?? "...",
-                    style: TextStyle(color: color, fontSize: 10)),
+                            color: Colors.white70, fontSize: 12))),
+                if (status != null) ...[
+                  const SizedBox(width: 4),
+                  Text(status.toString(),
+                      style: TextStyle(color: color, fontSize: 12)),
+                ],
                 Icon(expanded ? Icons.expand_less : Icons.expand_more,
                     size: 14, color: Colors.white30),
               ],
             ),
           ),
         ),
-        if (expanded)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(8),
-            margin: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
-            color: Colors.white.withAlpha(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.log.queryParams != null) ...[
-                  Text("QUERY PARAMS:",
-                      style: TextStyle(
-                          color: primaryColor,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(_prettyJson(widget.log.queryParams),
-                      style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                          fontFamily: 'monospace')),
-                  const SizedBox(height: 12),
-                ],
-                if (widget.log.requestBody != null) ...[
-                  Text("REQUEST BODY:",
-                      style: TextStyle(
-                          color: primaryColor,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(_prettyJson(widget.log.requestBody),
-                      style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                          fontFamily: 'monospace')),
-                  const SizedBox(height: 12),
-                ],
-                if (widget.log.responseBody != null) ...[
-                  const Text("RESPONSE BODY:",
-                      style: TextStyle(
-                          color: Colors.greenAccent,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(_prettyJson(widget.log.responseBody),
-                      style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                          fontFamily: 'monospace')),
-                  const SizedBox(height: 12),
-                ],
-                if (widget.log.errorMessage != null) ...[
-                  const Text("ERROR:",
-                      style: TextStyle(
-                          color: Colors.redAccent,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(widget.log.errorMessage!,
-                      style: const TextStyle(
-                          color: Colors.redAccent,
-                          fontSize: 10,
-                          fontFamily: 'monospace')),
-                  const SizedBox(height: 12),
-                ],
-                if (widget.log.stackTrace != null) ...[
-                  const Text("STACK TRACE:",
-                      style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Text(widget.log.stackTrace!,
-                      style: const TextStyle(
-                          color: Colors.white38,
-                          fontSize: 9,
-                          fontFamily: 'monospace')),
-                ],
-              ],
-            ),
-          ),
+        if (expanded) _buildExpandedBody(context, primaryColor),
       ],
+    );
+  }
+
+  Widget _buildExpandedBody(BuildContext context, Color primaryColor) {
+    final log = widget.log;
+    // A plain log is any entry created via log() — it has no statusCode.
+    // API logs (logApi/logError) always have a statusCode set.
+    final isPlainLog = log.statusCode == null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(8),
+      margin: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
+      color: Colors.white.withAlpha(8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isPlainLog && log.requestBody != null)
+            _buildSection(context,
+                label: 'DATA',
+                labelColor: primaryColor,
+                content: _prettyJson(log.requestBody),
+                contentColor: Colors.white70),
+          if (!isPlainLog) ...[
+            if (log.queryParams != null)
+              _buildSection(context,
+                  label: 'QUERY PARAMS',
+                  labelColor: primaryColor,
+                  content: _prettyJson(log.queryParams),
+                  contentColor: Colors.white70),
+            if (log.requestBody != null)
+              _buildSection(context,
+                  label: 'REQUEST BODY',
+                  labelColor: primaryColor,
+                  content: _prettyJson(log.requestBody),
+                  contentColor: Colors.white70),
+            if (log.responseBody != null)
+              _buildSection(context,
+                  label: 'RESPONSE BODY',
+                  labelColor: Colors.greenAccent,
+                  content: _prettyJson(log.responseBody),
+                  contentColor: Colors.white70),
+            if (log.errorMessage != null)
+              _buildSection(context,
+                  label: 'ERROR',
+                  labelColor: Colors.redAccent,
+                  content: log.errorMessage!,
+                  contentColor: Colors.redAccent),
+            if (log.stackTrace != null)
+              _buildSection(context,
+                  label: 'STACK TRACE',
+                  labelColor: Colors.grey,
+                  content: log.stackTrace!,
+                  contentColor: Colors.white38),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSection(
+    BuildContext context, {
+    required String label,
+    required Color labelColor,
+    required String content,
+    required Color contentColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '$label:',
+                style: TextStyle(
+                    color: labelColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => _copyToClipboard(context, label, content),
+                child: Tooltip(
+                  message: 'Copy $label',
+                  child: Icon(Icons.copy_outlined,
+                      size: 15, color: labelColor.withAlpha(180)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(content,
+              style: TextStyle(
+                  color: contentColor, fontSize: 11, fontFamily: 'monospace')),
+        ],
+      ),
+    );
+  }
+
+  void _copyToClipboard(BuildContext context, String label, String content) {
+    Clipboard.setData(ClipboardData(text: content));
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(
+        content: Text('$label copied to clipboard'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF2A2A2A),
+      ),
     );
   }
 

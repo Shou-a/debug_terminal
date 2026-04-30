@@ -27,8 +27,33 @@ class DebugTerminal {
   /// ```
   static Widget wrap(Widget child, {DebugTerminalConfig? config}) {
     if (!_isWrapped) {
-      ConsoleController.instance
-          .configure(config ?? const DebugTerminalConfig());
+      final _config = config ?? const DebugTerminalConfig();
+      ConsoleController.instance.configure(_config);
+
+      if (_config.logUnhandledExceptions) {
+        // Catch Flutter Framework errors (build, layout, etc.)
+        final originalOnError = FlutterError.onError;
+        FlutterError.onError = (details) {
+          logError(
+            "Flutter Framework Error",
+            error: details.exception,
+            stack: details.stack,
+            data: details.context?.toString(),
+          );
+          originalOnError?.call(details);
+        };
+
+        // Catch Unhandled Asynchronous errors
+        WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+          logError(
+            "Unhandled App Error",
+            error: error,
+            stack: stack,
+          );
+          return false; // Let the system handle it normally too
+        };
+      }
+
       _isWrapped = true;
     }
 
@@ -36,7 +61,7 @@ class DebugTerminal {
   }
 
   /// Logs a custom message to the console.
-  /// 
+  ///
   /// [title] is the name of the log entry.
   /// [group] is an optional category (defaults to "LOG").
   /// [data] is any serializable data to display when expanded.
@@ -45,7 +70,7 @@ class DebugTerminal {
   }
 
   /// Specialized API log for network traffic.
-  /// 
+  ///
   /// [path] The URL path.
   /// [method] The HTTP method (GET, POST, etc).
   /// [body] The request payload.

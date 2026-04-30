@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'config.dart';
 
@@ -64,6 +65,11 @@ class ConsoleController extends ChangeNotifier {
   final ValueNotifier<bool> showPinEntry = ValueNotifier(false);
   final ValueNotifier<bool> autoScrollLogs = ValueNotifier(true);
   final ValueNotifier<bool> isRecording = ValueNotifier(false);
+  final ValueNotifier<bool> collapseConsole = ValueNotifier(false);
+
+  /// Key placed on the terminal [Material] widget so the wrapper can
+  /// hit-test whether a tap is inside or outside the terminal bounds.
+  final GlobalKey terminalKey = GlobalKey();
 
   final List<Timer> _timers = [];
 
@@ -112,8 +118,8 @@ class ConsoleController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addLog(DebugLog log) {
-    if (!isRecording.value) return; // Only log if activated
+  void addLog(DebugLog log, {bool ignoreRecording = false}) {
+    if (!isRecording.value && !ignoreRecording) return; // Only log if activated or ignored check
     _logs.add(log);
     notifyListeners();
   }
@@ -152,16 +158,19 @@ class ConsoleController extends ChangeNotifier {
 
   /// Specialized Error log
   void logError(String message, {dynamic error, dynamic stack, dynamic data}) {
-    addLog(DebugLog(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      method: "ERROR",
-      path: message,
-      requestBody: data,
-      errorMessage: error?.toString(),
-      stackTrace: stack?.toString(),
-      statusCode: 500, // Visual hint for errors
-      timestamp: DateTime.now(),
-    ));
+    addLog(
+      DebugLog(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        method: "ERROR",
+        path: message,
+        requestBody: data,
+        errorMessage: error?.toString(),
+        stackTrace: stack?.toString(),
+        statusCode: 500, // Visual hint for errors
+        timestamp: DateTime.now(),
+      ),
+      ignoreRecording: true,
+    );
   }
 
   void updateLog(String id, {dynamic responseBody, int? statusCode}) {
@@ -208,6 +217,12 @@ class ConsoleController extends ChangeNotifier {
 
   void toggleConsole() {
     showConsole.value = !showConsole.value;
+    if (!showConsole.value) collapseConsole.value = false; // reset on close
+  }
+
+  /// Collapses the terminal panel without closing it.
+  void collapseTerminal() {
+    collapseConsole.value = true;
   }
 
   void toggleAutoScroll() {
